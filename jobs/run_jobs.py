@@ -107,13 +107,13 @@ def upsert_games_and_results(sb, schedule_json: dict):
     # Collect teams encountered in schedule
     teams_by_id: dict[int, dict] = {}
 
-    def extract_default(maybe_obj):
-        # Many fields are {"default": "..."} in api-web payloads
-        if isinstance(maybe_obj, dict):
-            return maybe_obj.get("default")
-        if isinstance(maybe_obj, str):
-            return maybe_obj
-        return None
+    def extract_default(v):
+        # api-web often uses {"default": "..."} (or sometimes {"default": {"...": ...}}; handle string case)
+        if isinstance(v, dict):
+            dv = v.get("default")
+            return dv if isinstance(dv, str) else None
+        return v if isinstance(v, str) else None
+
 
     def add_team(t: dict):
         if not isinstance(t, dict):
@@ -132,8 +132,9 @@ def upsert_games_and_results(sb, schedule_json: dict):
         # api-web schedule payload commonly has:
         # - t["name"]["default"] (e.g., "Sabres")
         # - t["placeName"]["default"] (e.g., "Buffalo")
-        name = extract_default(t.get("name")) or t.get("commonName") or f"Team {tid}"
-        city = extract_default(t.get("placeName")) or extract_default(t.get("homePlaceName")) or t.get("city") or "Unknown"
+        name = extract_default(t.get("name")) or extract_default(t.get("commonName")) or t.get("teamName") or f"Team {tid}"
+        city = extract_default(t.get("placeName")) or extract_default(t.get("homePlaceName")) or extract_default(t.get("locationName")) or t.get("city") or "Unknown"
+
 
         logo_url = f"https://assets.nhle.com/logos/nhl/svg/{abbrev}_light.svg"
 
