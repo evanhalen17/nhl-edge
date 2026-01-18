@@ -11,6 +11,7 @@ SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
 API_WEB = "https://api-web.nhle.com/v1"
+STATS_API_TEAMS_URL = "https://statsapi.web.nhl.com/api/v1/teams"
 
 
 def american_odds_from_prob(p: float) -> int | None:
@@ -82,11 +83,20 @@ def upsert_teams(sb, teams: list[dict]):
 
 
 def upsert_games_and_results(sb, schedule_json: dict):
-    # Scan schedule JSON for game objects with homeTeam/awayTeam and an id.
+    """
+    Upsert games + game_results ONLY.
+
+    Assumptions:
+    - teams are already present in public.teams (we upsert the canonical team directory
+      earlier in the run via upsert_team_directory()).
+    - This function should NEVER upsert into teams, to avoid overwriting real team metadata
+      with placeholders like 'Team 1'.
+    """
     games = []
 
     def scan(obj):
         if isinstance(obj, dict):
+            # A "game-like" object in the schedule payload
             if "homeTeam" in obj and "awayTeam" in obj and ("id" in obj or "gameId" in obj):
                 games.append(obj)
             for v in obj.values():
@@ -97,11 +107,10 @@ def upsert_games_and_results(sb, schedule_json: dict):
 
     scan(schedule_json)
 
-    now = datetime.now(timezone.utc)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
     games_rows = []
     results_rows = []
-
-    referenced_team_ids: set[int] = set()
 
     for g in games:
         game_id = g.get("id") or g.get("gameId")
@@ -118,9 +127,7 @@ def upsert_games_and_results(sb, schedule_json: dict):
         if start_time is None or home_id is None or away_id is None:
             continue
 
-        referenced_team_ids.add(int(home_id))
-        referenced_team_ids.add(int(away_id))
-
+        # Normalize status
         raw_state = (g.get("gameState") or g.get("gameStatus") or "scheduled").lower()
         if raw_state in ("final", "gameover", "off"):
             status = "final"
@@ -129,9 +136,10 @@ def upsert_games_and_results(sb, schedule_json: dict):
         else:
             status = "scheduled"
 
-        game_date = (g.get("gameDate") or start_time.split("T")[0])
+        # For browsing
+        game_date = g.get("gameDate") or start_time.split("T")[0]
 
-        # POC placeholders
+        # POC placeholders (we can improve season/type later from schedule metadata)
         season = 20252026
         game_type = "R"
 
@@ -145,11 +153,14 @@ def upsert_games_and_results(sb, schedule_json: dict):
                 "home_team_id": int(home_id),
                 "away_team_id": int(away_id),
                 "status": status,
-                "venue": (g.get("venue", {}) or {}).get("default") if isinstance(g.get("venue"), dict) else g.get("venue"),
-                "last_ingested_at": now.isoformat(),
+                "venue": (g.get("venue", {}) or {}).get("default")
+                if isinstance(g.get("venue"), dict)
+                else g.get("venue"),
+                "last_ingested_at": now_iso,
             }
         )
 
+        # Score snapshot (often only meaningful when live/final)
         hs = home.get("score")
         as_ = away.get("score")
         if hs is not None and as_ is not None:
@@ -158,105 +169,58 @@ def upsert_games_and_results(sb, schedule_json: dict):
                     "game_id": int(game_id),
                     "home_goals": int(hs),
                     "away_goals": int(as_),
-                    "updated_at": now.isoformat(),
+                    "updated_at": now_iso,
                 }
             )
 
-    # Ensure teams exist for any referenced IDs (minimal placeholder upsert).
-    # This prevents FK violations even if team details were missing in the schedule payload.
-    if referenced_team_ids:
-        existing = sb.table("teams").select("team_id").in_("team_id", list(referenced_team_ids)).execute()
-        existing_ids = {row["team_id"] for row in (existing.data or [])}
-        missing_ids = sorted(referenced_team_ids - existing_ids)
-
-        if missing_ids:
-            now_iso = now.isoformat()
-            placeholder_rows = [
-                {
-                    "team_id": tid,
-                    "abbrev": f"T{tid}",
-                    "name": f"Team {tid}",
-                    "city": "Unknown",
-                    "updated_at": now_iso,
-                }
-                for tid in missing_ids
-            ]
-            sb.table("teams").upsert(placeholder_rows, on_conflict="team_id").execute()
-
-    # Now safe to upsert games/results
     if games_rows:
         sb.table("games").upsert(games_rows, on_conflict="game_id").execute()
+
     if results_rows:
         sb.table("game_results").upsert(results_rows, on_conflict="game_id").execute()
 
-def refresh_team_metadata(sb):
+def upsert_team_directory(sb):
     """
-    Pull a canonical team list and update teams table with real abbrev/name/city.
-    Also set a deterministic logo_url (CDN) so the iOS app can display logos.
+    Upsert canonical team metadata from NHL Stats API.
+    If network/DNS blocks this host (common locally), do NOT fail the whole job.
     """
     now_iso = datetime.now(timezone.utc).isoformat()
+    url = "https://statsapi.web.nhl.com/api/v1/teams"
 
-    # NHL team list endpoint (public)
-    url = f"{API_WEB}/teams"
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    data = r.json()
+    try:
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        teams = data.get("teams", [])
+        if not isinstance(teams, list) or not teams:
+            raise RuntimeError(f"Unexpected teams payload: keys={list(data.keys())}")
 
-    # The response shape can vary; handle common patterns
-    team_list = []
-    if isinstance(data, dict):
-        if "teams" in data and isinstance(data["teams"], list):
-            team_list = data["teams"]
-        elif "data" in data and isinstance(data["data"], list):
-            team_list = data["data"]
-    elif isinstance(data, list):
-        team_list = data
+        rows = []
+        for t in teams:
+            team_id = t.get("id")
+            if team_id is None:
+                continue
 
-    rows = []
-    for t in team_list:
-        team_id = t.get("id") or t.get("teamId")
-        if team_id is None:
-            continue
+            abbrev = t.get("abbreviation") or f"T{team_id}"
+            city = t.get("locationName") or "Unknown"
+            name = t.get("teamName") or t.get("name") or f"Team {team_id}"
+            logo_url = f"https://assets.nhle.com/logos/nhl/svg/{abbrev}_light.svg"
 
-        # Name/city fields vary; do best-effort extraction
-        name = None
-        city = None
-        abbrev = t.get("abbrev") or t.get("triCode") or t.get("abbreviation")
+            rows.append({
+                "team_id": int(team_id),
+                "abbrev": abbrev,
+                "name": name,
+                "city": city,
+                "logo_url": logo_url,
+                "updated_at": now_iso,
+            })
 
-        # Some payloads use nested "name" objects:
-        if isinstance(t.get("name"), dict):
-            name = t["name"].get("default")
-        elif isinstance(t.get("name"), str):
-            name = t["name"]
-
-        if isinstance(t.get("placeName"), dict):
-            city = t["placeName"].get("default")
-        elif isinstance(t.get("city"), str):
-            city = t.get("city")
-
-        # Fallbacks if missing
-        if name is None:
-            name = t.get("fullName") or t.get("teamName") or f"Team {team_id}"
-        if city is None:
-            city = "Unknown"
-        if abbrev is None:
-            abbrev = f"T{team_id}"
-
-        # Deterministic logo URL (NHL CDN SVG by team id)
-        # Works well for apps; iOS can render SVG via a library, or use PNG if you prefer.
-        logo_url = f"https://assets.nhle.com/logos/nhl/svg/{abbrev}_light.svg"
-
-        rows.append({
-            "team_id": int(team_id),
-            "abbrev": abbrev,
-            "name": name,
-            "city": city,
-            "logo_url": logo_url,
-            "updated_at": now_iso
-        })
-
-    if rows:
         sb.table("teams").upsert(rows, on_conflict="team_id").execute()
+        print(f"[teams] upsert_team_directory: upserted {len(rows)} teams from statsapi")
+
+    except Exception as e:
+        # Non-fatal: continue with schedule-based abbrev/logo
+        print(f"[teams] upsert_team_directory: skipped (reason: {type(e).__name__}: {e})")
 
 
 def generate_poc_projections(sb, game_ids: list[int], model_version: str = "0.1.0"):
@@ -370,7 +334,7 @@ def main():
     run = sb.table("ingestion_runs").insert({"job_name": "scheduled_ingest_and_project"}).execute()
     run_id = run.data[0]["run_id"] if run.data else None
 
-    refresh_team_metadata(sb)
+    upsert_team_directory(sb)
 
     try:
         today = datetime.now(timezone.utc).date()
