@@ -79,7 +79,7 @@ def upsert_teams(sb, teams: list[dict]):
 
 
 def upsert_games_and_results(sb, schedule_json: dict):
-    # Schedule payload formats can vary; we defensively scan for objects with homeTeam/awayTeam.
+    # Scan schedule JSON for game objects with homeTeam/awayTeam and an id.
     games = []
 
     def scan(obj):
@@ -98,6 +98,8 @@ def upsert_games_and_results(sb, schedule_json: dict):
     games_rows = []
     results_rows = []
 
+    referenced_team_ids: set[int] = set()
+
     for g in games:
         game_id = g.get("id") or g.get("gameId")
         if game_id is None:
@@ -113,7 +115,9 @@ def upsert_games_and_results(sb, schedule_json: dict):
         if start_time is None or home_id is None or away_id is None:
             continue
 
-        # normalize status
+        referenced_team_ids.add(int(home_id))
+        referenced_team_ids.add(int(away_id))
+
         raw_state = (g.get("gameState") or g.get("gameStatus") or "scheduled").lower()
         if raw_state in ("final", "gameover", "off"):
             status = "final"
@@ -124,7 +128,7 @@ def upsert_games_and_results(sb, schedule_json: dict):
 
         game_date = (g.get("gameDate") or start_time.split("T")[0])
 
-        # POC placeholders: adjust later to true season/type
+        # POC placeholders
         season = 20252026
         game_type = "R"
 
@@ -143,7 +147,6 @@ def upsert_games_and_results(sb, schedule_json: dict):
             }
         )
 
-        # score snapshot (often present even pregame as null; store only if present)
         hs = home.get("score")
         as_ = away.get("score")
         if hs is not None and as_ is not None:
@@ -156,6 +159,28 @@ def upsert_games_and_results(sb, schedule_json: dict):
                 }
             )
 
+    # Ensure teams exist for any referenced IDs (minimal placeholder upsert).
+    # This prevents FK violations even if team details were missing in the schedule payload.
+    if referenced_team_ids:
+        existing = sb.table("teams").select("team_id").in_("team_id", list(referenced_team_ids)).execute()
+        existing_ids = {row["team_id"] for row in (existing.data or [])}
+        missing_ids = sorted(referenced_team_ids - existing_ids)
+
+        if missing_ids:
+            now_iso = now.isoformat()
+            placeholder_rows = [
+                {
+                    "team_id": tid,
+                    "abbrev": f"T{tid}",
+                    "name": f"Team {tid}",
+                    "city": "Unknown",
+                    "updated_at": now_iso,
+                }
+                for tid in missing_ids
+            ]
+            sb.table("teams").upsert(placeholder_rows, on_conflict="team_id").execute()
+
+    # Now safe to upsert games/results
     if games_rows:
         sb.table("games").upsert(games_rows, on_conflict="game_id").execute()
     if results_rows:
