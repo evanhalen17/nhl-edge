@@ -189,6 +189,75 @@ def upsert_games_and_results(sb, schedule_json: dict):
     if results_rows:
         sb.table("game_results").upsert(results_rows, on_conflict="game_id").execute()
 
+def refresh_team_metadata(sb):
+    """
+    Pull a canonical team list and update teams table with real abbrev/name/city.
+    Also set a deterministic logo_url (CDN) so the iOS app can display logos.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # NHL team list endpoint (public)
+    url = f"{API_WEB}/teams"
+    r = requests.get(url, timeout=30)
+    r.raise_for_status()
+    data = r.json()
+
+    # The response shape can vary; handle common patterns
+    team_list = []
+    if isinstance(data, dict):
+        if "teams" in data and isinstance(data["teams"], list):
+            team_list = data["teams"]
+        elif "data" in data and isinstance(data["data"], list):
+            team_list = data["data"]
+    elif isinstance(data, list):
+        team_list = data
+
+    rows = []
+    for t in team_list:
+        team_id = t.get("id") or t.get("teamId")
+        if team_id is None:
+            continue
+
+        # Name/city fields vary; do best-effort extraction
+        name = None
+        city = None
+        abbrev = t.get("abbrev") or t.get("triCode") or t.get("abbreviation")
+
+        # Some payloads use nested "name" objects:
+        if isinstance(t.get("name"), dict):
+            name = t["name"].get("default")
+        elif isinstance(t.get("name"), str):
+            name = t["name"]
+
+        if isinstance(t.get("placeName"), dict):
+            city = t["placeName"].get("default")
+        elif isinstance(t.get("city"), str):
+            city = t.get("city")
+
+        # Fallbacks if missing
+        if name is None:
+            name = t.get("fullName") or t.get("teamName") or f"Team {team_id}"
+        if city is None:
+            city = "Unknown"
+        if abbrev is None:
+            abbrev = f"T{team_id}"
+
+        # Deterministic logo URL (NHL CDN SVG by team id)
+        # Works well for apps; iOS can render SVG via a library, or use PNG if you prefer.
+        logo_url = f"https://assets.nhle.com/logos/nhl/svg/{abbrev}_light.svg"
+
+        rows.append({
+            "team_id": int(team_id),
+            "abbrev": abbrev,
+            "name": name,
+            "city": city,
+            "logo_url": logo_url,
+            "updated_at": now_iso
+        })
+
+    if rows:
+        sb.table("teams").upsert(rows, on_conflict="team_id").execute()
+
 
 def generate_poc_projections(sb, game_ids: list[int], model_version: str = "0.1.0"):
     """
@@ -300,6 +369,8 @@ def main():
 
     run = sb.table("ingestion_runs").insert({"job_name": "scheduled_ingest_and_project"}).execute()
     run_id = run.data[0]["run_id"] if run.data else None
+
+    refresh_team_metadata(sb)
 
     try:
         today = datetime.now(timezone.utc).date()
