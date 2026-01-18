@@ -181,46 +181,44 @@ def upsert_games_and_results(sb, schedule_json: dict):
 
 def upsert_team_directory(sb):
     """
-    Upsert canonical team metadata from NHL Stats API.
-    If network/DNS blocks this host (common locally), do NOT fail the whole job.
+    Populate teams table from NHL Stats API team directory (stable).
+    This is the ONLY place we write teams.name/city/abbrev/logo_url.
     """
     now_iso = datetime.now(timezone.utc).isoformat()
     url = "https://statsapi.web.nhl.com/api/v1/teams"
 
-    try:
-        r = requests.get(url, timeout=30)
-        r.raise_for_status()
-        data = r.json()
-        teams = data.get("teams", [])
-        if not isinstance(teams, list) or not teams:
-            raise RuntimeError(f"Unexpected teams payload: keys={list(data.keys())}")
+    r = requests.get(url, timeout=30)
+    r.raise_for_status()
+    data = r.json()
 
-        rows = []
-        for t in teams:
-            team_id = t.get("id")
-            if team_id is None:
-                continue
+    teams = data.get("teams", [])
+    if not isinstance(teams, list) or not teams:
+        raise RuntimeError(f"Unexpected teams payload from {url}: keys={list(data.keys())}")
 
-            abbrev = t.get("abbreviation") or f"T{team_id}"
-            city = t.get("locationName") or "Unknown"
-            name = t.get("teamName") or t.get("name") or f"Team {team_id}"
-            logo_url = f"https://assets.nhle.com/logos/nhl/svg/{abbrev}_light.svg"
+    rows = []
+    for t in teams:
+        team_id = t.get("id")
+        if team_id is None:
+            continue
 
-            rows.append({
-                "team_id": int(team_id),
-                "abbrev": abbrev,
-                "name": name,
-                "city": city,
-                "logo_url": logo_url,
-                "updated_at": now_iso,
-            })
+        abbrev = t.get("abbreviation") or f"T{team_id}"
+        city = t.get("locationName") or "Unknown"
+        name = t.get("teamName") or t.get("name") or f"Team {team_id}"
 
-        sb.table("teams").upsert(rows, on_conflict="team_id").execute()
-        print(f"[teams] upsert_team_directory: upserted {len(rows)} teams from statsapi")
+        # SVG logo (as you want). Note: iOS needs an SVG renderer.
+        logo_url = f"https://assets.nhle.com/logos/nhl/svg/{abbrev}_light.svg"
 
-    except Exception as e:
-        # Non-fatal: continue with schedule-based abbrev/logo
-        print(f"[teams] upsert_team_directory: skipped (reason: {type(e).__name__}: {e})")
+        rows.append({
+            "team_id": int(team_id),
+            "abbrev": abbrev,
+            "name": name,
+            "city": city,
+            "logo_url": logo_url,
+            "updated_at": now_iso,
+        })
+
+    sb.table("teams").upsert(rows, on_conflict="team_id").execute()
+    print(f"[teams] upserted {len(rows)} teams from statsapi directory")
 
 
 def generate_poc_projections(sb, game_ids: list[int], model_version: str = "0.1.0"):
