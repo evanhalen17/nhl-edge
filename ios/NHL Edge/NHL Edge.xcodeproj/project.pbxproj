@@ -1,0 +1,614 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		BEEAD2FB2F1D4D58000E63D5 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = BEEAD2FA2F1D4D58000E63D5 /* Supabase */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BE4CA4032F1D46E1003636E8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BE4CA3ED2F1D46E0003636E8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE4CA3F42F1D46E0003636E8;
+			remoteInfo = "NHL Edge";
+		};
+		BE4CA40D2F1D46E1003636E8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BE4CA3ED2F1D46E0003636E8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE4CA3F42F1D46E0003636E8;
+			remoteInfo = "NHL Edge";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		BE4CA3F52F1D46E0003636E8 /* NHL Edge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NHL Edge.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE4CA4022F1D46E1003636E8 /* NHL EdgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NHL EdgeTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE4CA40C2F1D46E1003636E8 /* NHL EdgeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NHL EdgeUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		BE4CA3F72F1D46E0003636E8 /* NHL Edge */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "NHL Edge";
+			sourceTree = "<group>";
+		};
+		BE4CA4052F1D46E1003636E8 /* NHL EdgeTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "NHL EdgeTests";
+			sourceTree = "<group>";
+		};
+		BE4CA40F2F1D46E1003636E8 /* NHL EdgeUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "NHL EdgeUITests";
+			sourceTree = "<group>";
+		};
+		BE77C71B2F1D579D00391D9A /* Config */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Config;
+			sourceTree = "<group>";
+		};
+		BEEAD2DF2F1D48BF000E63D5 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		BEEAD2E72F1D4909000E63D5 /* Features */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Features;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BE4CA3F22F1D46E0003636E8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BEEAD2FB2F1D4D58000E63D5 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE4CA3FF2F1D46E1003636E8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE4CA4092F1D46E1003636E8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		BE4CA3EC2F1D46E0003636E8 = {
+			isa = PBXGroup;
+			children = (
+				BE77C71B2F1D579D00391D9A /* Config */,
+				BEEAD2E72F1D4909000E63D5 /* Features */,
+				BEEAD2DF2F1D48BF000E63D5 /* Shared */,
+				BE4CA3F72F1D46E0003636E8 /* NHL Edge */,
+				BE4CA4052F1D46E1003636E8 /* NHL EdgeTests */,
+				BE4CA40F2F1D46E1003636E8 /* NHL EdgeUITests */,
+				BE4CA3F62F1D46E0003636E8 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		BE4CA3F62F1D46E0003636E8 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BE4CA3F52F1D46E0003636E8 /* NHL Edge.app */,
+				BE4CA4022F1D46E1003636E8 /* NHL EdgeTests.xctest */,
+				BE4CA40C2F1D46E1003636E8 /* NHL EdgeUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		BE4CA3F42F1D46E0003636E8 /* NHL Edge */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BE4CA4162F1D46E1003636E8 /* Build configuration list for PBXNativeTarget "NHL Edge" */;
+			buildPhases = (
+				BE4CA3F12F1D46E0003636E8 /* Sources */,
+				BE4CA3F22F1D46E0003636E8 /* Frameworks */,
+				BE4CA3F32F1D46E0003636E8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BE4CA3F72F1D46E0003636E8 /* NHL Edge */,
+				BE77C71B2F1D579D00391D9A /* Config */,
+				BEEAD2DF2F1D48BF000E63D5 /* Shared */,
+				BEEAD2E72F1D4909000E63D5 /* Features */,
+			);
+			name = "NHL Edge";
+			packageProductDependencies = (
+				BEEAD2FA2F1D4D58000E63D5 /* Supabase */,
+			);
+			productName = "NHL Edge";
+			productReference = BE4CA3F52F1D46E0003636E8 /* NHL Edge.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BE4CA4012F1D46E1003636E8 /* NHL EdgeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BE4CA4192F1D46E1003636E8 /* Build configuration list for PBXNativeTarget "NHL EdgeTests" */;
+			buildPhases = (
+				BE4CA3FE2F1D46E1003636E8 /* Sources */,
+				BE4CA3FF2F1D46E1003636E8 /* Frameworks */,
+				BE4CA4002F1D46E1003636E8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BE4CA4042F1D46E1003636E8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BE4CA4052F1D46E1003636E8 /* NHL EdgeTests */,
+			);
+			name = "NHL EdgeTests";
+			packageProductDependencies = (
+			);
+			productName = "NHL EdgeTests";
+			productReference = BE4CA4022F1D46E1003636E8 /* NHL EdgeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		BE4CA40B2F1D46E1003636E8 /* NHL EdgeUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BE4CA41C2F1D46E1003636E8 /* Build configuration list for PBXNativeTarget "NHL EdgeUITests" */;
+			buildPhases = (
+				BE4CA4082F1D46E1003636E8 /* Sources */,
+				BE4CA4092F1D46E1003636E8 /* Frameworks */,
+				BE4CA40A2F1D46E1003636E8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BE4CA40E2F1D46E1003636E8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BE4CA40F2F1D46E1003636E8 /* NHL EdgeUITests */,
+			);
+			name = "NHL EdgeUITests";
+			packageProductDependencies = (
+			);
+			productName = "NHL EdgeUITests";
+			productReference = BE4CA40C2F1D46E1003636E8 /* NHL EdgeUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BE4CA3ED2F1D46E0003636E8 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 1640;
+				TargetAttributes = {
+					BE4CA3F42F1D46E0003636E8 = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					BE4CA4012F1D46E1003636E8 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = BE4CA3F42F1D46E0003636E8;
+					};
+					BE4CA40B2F1D46E1003636E8 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = BE4CA3F42F1D46E0003636E8;
+					};
+				};
+			};
+			buildConfigurationList = BE4CA3F02F1D46E0003636E8 /* Build configuration list for PBXProject "NHL Edge" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = BE4CA3EC2F1D46E0003636E8;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BEEAD2F92F1D4D58000E63D5 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = BE4CA3F62F1D46E0003636E8 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				BE4CA3F42F1D46E0003636E8 /* NHL Edge */,
+				BE4CA4012F1D46E1003636E8 /* NHL EdgeTests */,
+				BE4CA40B2F1D46E1003636E8 /* NHL EdgeUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BE4CA3F32F1D46E0003636E8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE4CA4002F1D46E1003636E8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE4CA40A2F1D46E1003636E8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BE4CA3F12F1D46E0003636E8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE4CA3FE2F1D46E1003636E8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE4CA4082F1D46E1003636E8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BE4CA4042F1D46E1003636E8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE4CA3F42F1D46E0003636E8 /* NHL Edge */;
+			targetProxy = BE4CA4032F1D46E1003636E8 /* PBXContainerItemProxy */;
+		};
+		BE4CA40E2F1D46E1003636E8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE4CA3F42F1D46E0003636E8 /* NHL Edge */;
+			targetProxy = BE4CA40D2F1D46E1003636E8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		BE4CA4142F1D46E1003636E8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = BE77C71B2F1D579D00391D9A /* Config */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		BE4CA4152F1D46E1003636E8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = BE77C71B2F1D579D00391D9A /* Config */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		BE4CA4172F1D46E1003636E8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = BE77C71B2F1D579D00391D9A /* Config */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "NHL-Edge-Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ET.NHL-Edge";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BE4CA4182F1D46E1003636E8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = BE77C71B2F1D579D00391D9A /* Config */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "NHL-Edge-Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ET.NHL-Edge";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		BE4CA41A2F1D46E1003636E8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ET.NHL-EdgeTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NHL Edge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NHL Edge";
+			};
+			name = Debug;
+		};
+		BE4CA41B2F1D46E1003636E8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ET.NHL-EdgeTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NHL Edge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NHL Edge";
+			};
+			name = Release;
+		};
+		BE4CA41D2F1D46E1003636E8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ET.NHL-EdgeUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "NHL Edge";
+			};
+			name = Debug;
+		};
+		BE4CA41E2F1D46E1003636E8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ET.NHL-EdgeUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "NHL Edge";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BE4CA3F02F1D46E0003636E8 /* Build configuration list for PBXProject "NHL Edge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BE4CA4142F1D46E1003636E8 /* Debug */,
+				BE4CA4152F1D46E1003636E8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BE4CA4162F1D46E1003636E8 /* Build configuration list for PBXNativeTarget "NHL Edge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BE4CA4172F1D46E1003636E8 /* Debug */,
+				BE4CA4182F1D46E1003636E8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BE4CA4192F1D46E1003636E8 /* Build configuration list for PBXNativeTarget "NHL EdgeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BE4CA41A2F1D46E1003636E8 /* Debug */,
+				BE4CA41B2F1D46E1003636E8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BE4CA41C2F1D46E1003636E8 /* Build configuration list for PBXNativeTarget "NHL EdgeUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BE4CA41D2F1D46E1003636E8 /* Debug */,
+				BE4CA41E2F1D46E1003636E8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		BEEAD2F92F1D4D58000E63D5 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BEEAD2FA2F1D4D58000E63D5 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BEEAD2F92F1D4D58000E63D5 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = BE4CA3ED2F1D46E0003636E8 /* Project object */;
+}
