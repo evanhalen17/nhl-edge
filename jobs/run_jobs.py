@@ -84,19 +84,14 @@ def upsert_teams(sb, teams: list[dict]):
 
 def upsert_games_and_results(sb, schedule_json: dict):
     """
-    Upsert games + game_results ONLY.
-
-    Assumptions:
-    - teams are already present in public.teams (we upsert the canonical team directory
-      earlier in the run via upsert_team_directory()).
-    - This function should NEVER upsert into teams, to avoid overwriting real team metadata
-      with placeholders like 'Team 1'.
+    Upsert teams + games + game_results from the schedule payload ONLY.
+    Uses api-web.nhle.com schedule objects, which include team name + placeName.
+    Avoids any dependency on statsapi.web.nhl.com.
     """
     games = []
 
     def scan(obj):
         if isinstance(obj, dict):
-            # A "game-like" object in the schedule payload
             if "homeTeam" in obj and "awayTeam" in obj and ("id" in obj or "gameId" in obj):
                 games.append(obj)
             for v in obj.values():
@@ -108,6 +103,60 @@ def upsert_games_and_results(sb, schedule_json: dict):
     scan(schedule_json)
 
     now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Collect teams encountered in schedule
+    teams_by_id: dict[int, dict] = {}
+
+    def extract_default(maybe_obj):
+        # Many fields are {"default": "..."} in api-web payloads
+        if isinstance(maybe_obj, dict):
+            return maybe_obj.get("default")
+        if isinstance(maybe_obj, str):
+            return maybe_obj
+        return None
+
+    def add_team(t: dict):
+        if not isinstance(t, dict):
+            return
+        tid = t.get("id") or t.get("teamId")
+        if tid is None:
+            return
+        tid = int(tid)
+
+        # Abbrev fields
+        abbrev = t.get("abbrev") or t.get("triCode") or t.get("abbreviation")
+        if not abbrev:
+            # last resort placeholder, but this should rarely happen
+            abbrev = f"T{tid}"
+
+        # api-web schedule payload commonly has:
+        # - t["name"]["default"] (e.g., "Sabres")
+        # - t["placeName"]["default"] (e.g., "Buffalo")
+        name = extract_default(t.get("name")) or t.get("commonName") or f"Team {tid}"
+        city = extract_default(t.get("placeName")) or extract_default(t.get("homePlaceName")) or t.get("city") or "Unknown"
+
+        logo_url = f"https://assets.nhle.com/logos/nhl/svg/{abbrev}_light.svg"
+
+        existing = teams_by_id.get(tid)
+        if existing is None:
+            teams_by_id[tid] = {
+                "team_id": tid,
+                "abbrev": abbrev,
+                "name": name,
+                "city": city,
+                "logo_url": logo_url,
+                "updated_at": now_iso,
+            }
+        else:
+            # Prefer non-placeholder values if we get better ones later in scan
+            if existing.get("abbrev", "").startswith("T") and not abbrev.startswith("T"):
+                existing["abbrev"] = abbrev
+                existing["logo_url"] = logo_url
+            if existing.get("name") in (None, "", f"Team {tid}") and name not in (None, "", f"Team {tid}"):
+                existing["name"] = name
+            if existing.get("city") in (None, "", "Unknown") and city not in (None, "", "Unknown"):
+                existing["city"] = city
+            existing["updated_at"] = now_iso
 
     games_rows = []
     results_rows = []
@@ -127,7 +176,10 @@ def upsert_games_and_results(sb, schedule_json: dict):
         if start_time is None or home_id is None or away_id is None:
             continue
 
-        # Normalize status
+        # Add teams first (so FK won't fail)
+        add_team(home)
+        add_team(away)
+
         raw_state = (g.get("gameState") or g.get("gameStatus") or "scheduled").lower()
         if raw_state in ("final", "gameover", "off"):
             status = "final"
@@ -136,10 +188,8 @@ def upsert_games_and_results(sb, schedule_json: dict):
         else:
             status = "scheduled"
 
-        # For browsing
         game_date = g.get("gameDate") or start_time.split("T")[0]
 
-        # POC placeholders (we can improve season/type later from schedule metadata)
         season = 20252026
         game_type = "R"
 
@@ -153,14 +203,11 @@ def upsert_games_and_results(sb, schedule_json: dict):
                 "home_team_id": int(home_id),
                 "away_team_id": int(away_id),
                 "status": status,
-                "venue": (g.get("venue", {}) or {}).get("default")
-                if isinstance(g.get("venue"), dict)
-                else g.get("venue"),
+                "venue": extract_default(g.get("venue")) or g.get("venue"),
                 "last_ingested_at": now_iso,
             }
         )
 
-        # Score snapshot (often only meaningful when live/final)
         hs = home.get("score")
         as_ = away.get("score")
         if hs is not None and as_ is not None:
@@ -172,6 +219,10 @@ def upsert_games_and_results(sb, schedule_json: dict):
                     "updated_at": now_iso,
                 }
             )
+
+    # Upsert teams first (satisfies FKs)
+    if teams_by_id:
+        sb.table("teams").upsert(list(teams_by_id.values()), on_conflict="team_id").execute()
 
     if games_rows:
         sb.table("games").upsert(games_rows, on_conflict="game_id").execute()
@@ -331,8 +382,6 @@ def main():
 
     run = sb.table("ingestion_runs").insert({"job_name": "scheduled_ingest_and_project"}).execute()
     run_id = run.data[0]["run_id"] if run.data else None
-
-    upsert_team_directory(sb)
 
     try:
         today = datetime.now(timezone.utc).date()
