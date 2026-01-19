@@ -5,17 +5,14 @@ struct GameRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(game.awayAbbrev) @ \(game.homeAbbrev)")
-                    .font(.headline)
-
-                Text(game.startTimeText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                if let venue = game.venue {
-                    Text(venue)
-                        .font(.caption)
+            // Away team
+            HStack(spacing: 8) {
+                logoTile(urlString: game.awayLogoURL)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(game.awayAbbrev)
+                        .font(.headline)
+                    Text(game.awayTeam)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -23,24 +20,66 @@ struct GameRowView: View {
 
             Spacer()
 
-            if let home = game.homeWinProb, let away = game.awayWinProb {
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("Home \(Int((home * 100).rounded()))%")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("Away \(Int((away * 100).rounded()))%")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                Text("—")
+            VStack(spacing: 2) {
+                Text("vs")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+
+                if !game.startTimeText.isEmpty {
+                    Text(game.startTimeText)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                } else {
+                    Text(game.date.formatted(date: .abbreviated, time: .omitted))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+
+                if let venue = game.venue, !venue.isEmpty {
+                    Text(venue)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .multilineTextAlignment(.center)
+
+            Spacer()
+
+            // Home team
+            HStack(spacing: 8) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(game.homeAbbrev)
+                        .font(.headline)
+                    Text(game.homeTeam)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                logoTile(urlString: game.homeLogoURL)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func logoTile(urlString: String?) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.black.opacity(0.85))
+
+            SVGRemoteImageView(urlString: urlString, boxSize: 32)
+                .padding(1)
+        }
+        .frame(width: 40, height: 40)
+        .accessibilityHidden(true)
     }
 }
 
 #Preview {
-    List { GameRowView(game: MockData.games[0]) }
+    List {
+        GameRowView(game: MockData.games[0])
+        GameRowView(game: MockData.games[1])
+    }
+    .environmentObject(AppSettings())
 }

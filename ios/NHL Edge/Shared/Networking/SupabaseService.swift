@@ -5,6 +5,10 @@ final class SupabaseService {
     static let shared = SupabaseService()
     let client: SupabaseClient
 
+    // MARK: - Simple in-memory cache
+    private var cachedTeams: [TeamDTO]?
+    private var cachedTeamsById: [Int: TeamDTO]?
+
     private init() {
         let rawUrl = (Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String) ?? ""
         let rawKey = (Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String) ?? ""
@@ -17,35 +21,50 @@ final class SupabaseService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
 
-        print("🔥 SUPABASE_URL:", urlString.isEmpty ? "EMPTY" : urlString)
-        print("🔥 SUPABASE_ANON_KEY present:", !anonKey.isEmpty)
-
         guard let url = URL(string: urlString) else {
             fatalError("SUPABASE_URL is not a valid URL: \(urlString)")
         }
+
         guard !anonKey.isEmpty else {
             fatalError("Missing SUPABASE_ANON_KEY")
         }
 
+        // NOTE:
+        // Your supabase-swift version does NOT support `localStorage`
+        // so we keep auth options minimal.
         client = SupabaseClient(
             supabaseURL: url,
-            supabaseKey: anonKey,
-            options: SupabaseClientOptions(
-                auth: SupabaseClientOptions.AuthOptions(
-                    storage: KeychainLocalStorage(),
-                    emitLocalSessionAsInitialSession: true
-                )
-            )
+            supabaseKey: anonKey
         )
     }
 
-    func fetchTeams() async throws -> [TeamDTO] {
-        try await client
+    // MARK: - Teams
+
+    func fetchTeams(forceRefresh: Bool = false) async throws -> [TeamDTO] {
+        if !forceRefresh, let cachedTeams {
+            return cachedTeams
+        }
+
+        let dtos: [TeamDTO] = try await client
             .from("teams")
             .select()
+            .order("team_id", ascending: true)
             .execute()
             .value
+
+        cachedTeams = dtos
+        cachedTeamsById = Dictionary(
+            uniqueKeysWithValues: dtos.map { ($0.team_id, $0) }
+        )
+
+        return dtos
     }
+
+    func getCachedTeamsById() -> [Int: TeamDTO]? {
+        cachedTeamsById
+    }
+
+    // MARK: - Games
 
     func fetchGames(limit: Int = 200) async throws -> [GameDTO] {
         try await client
@@ -57,5 +76,4 @@ final class SupabaseService {
             .execute()
             .value
     }
-
 }

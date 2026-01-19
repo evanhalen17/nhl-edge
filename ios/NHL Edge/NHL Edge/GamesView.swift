@@ -31,12 +31,12 @@ struct GamesView: View {
                 GameDetailView(game: game)
             }
             .task { await load() }
-            .refreshable { await load() }
+            .refreshable { await load(forceRefreshTeams: false) }
         }
     }
 
     @MainActor
-    private func load() async {
+    private func load(forceRefreshTeams: Bool = false) async {
         errorText = nil
 
         if settings.useTestData {
@@ -48,19 +48,22 @@ struct GamesView: View {
         defer { isLoading = false }
 
         do {
-            // 1) Fetch teams and games from Supabase
-            let teamDTOs = try await SupabaseService.shared.fetchTeams()
+            // 1) Get teams dictionary (prefer cache)
+            let teamById: [Int: TeamDTO]
+            if !forceRefreshTeams, let cached = SupabaseService.shared.getCachedTeamsById() {
+                teamById = cached
+            } else {
+                let teamDTOs = try await SupabaseService.shared.fetchTeams(forceRefresh: forceRefreshTeams)
+                teamById = Dictionary(uniqueKeysWithValues: teamDTOs.map { ($0.team_id, $0) })
+            }
+
+            // 2) Fetch games
             let gameDTOs = try await SupabaseService.shared.fetchGames()
 
-            // 2) Build lookup dictionary team_id -> TeamDTO
-            let teamById: [Int: TeamDTO] = Dictionary(
-                uniqueKeysWithValues: teamDTOs.map { ($0.team_id, $0) }
-            )
-
-            // 3) Map to UI model (resolving ids -> names/abbrevs)
+            // 3) Map to UI model with join
             let mapped = gameDTOs.map { Game(dto: $0, teamById: teamById) }
 
-            // Optional: sort by date/time
+            // 4) Sort by start time
             games = mapped.sorted { $0.date < $1.date }
 
         } catch {

@@ -1,10 +1,5 @@
 import Foundation
 
-/// UI model used by SwiftUI lists/detail screens.
-///
-/// This model is *not* a 1:1 match to the `games` table schema:
-/// - Supabase `games` has `home_team_id` / `away_team_id` (ints), not names/abbrevs.
-/// - We resolve names/abbrevs by joining against `teams` (client-side).
 struct Game: Identifiable, Hashable {
     let id: String
 
@@ -16,15 +11,16 @@ struct Game: Identifiable, Hashable {
     let startTimeText: String
     let venue: String?
 
+    // Logos (SVG URLs from teams table)
+    let awayLogoURL: String?
+    let homeLogoURL: String?
+
     // Not present in your current `games` table schema; placeholders for projections later
     let homeWinProb: Double?
     let awayWinProb: Double?
 }
 
 extension Game {
-    // MARK: - Date parsing helpers
-
-    /// Parses `game_date` from Supabase `date` column (typically "YYYY-MM-DD").
     static func parseGameDate(_ s: String) -> Date {
         let df = DateFormatter()
         df.calendar = Calendar(identifier: .gregorian)
@@ -34,7 +30,6 @@ extension Game {
         return df.date(from: s) ?? Date()
     }
 
-    /// Parses Supabase `timestamptz` ISO strings (with or without fractional seconds).
     static func parseISO(_ s: String) -> Date? {
         let f1 = ISO8601DateFormatter()
         f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -45,22 +40,12 @@ extension Game {
         return f2.date(from: s)
     }
 
-    // MARK: - Mapping from Supabase DTOs
-
-    /// Builds a `Game` using a `GameDTO` row plus a team lookup dictionary.
-    ///
-    /// Expected DTO fields (per your Supabase schema):
-    /// `GameDTO`: game_id(Int), game_date(String), start_time_utc(String?),
-    ///           home_team_id(Int), away_team_id(Int), venue(String?)
-    /// `TeamDTO`: team_id(Int), name(String), abbrev(String)
     init(dto: GameDTO, teamById: [Int: TeamDTO]) {
         let away = teamById[dto.away_team_id]
         let home = teamById[dto.home_team_id]
 
         let resolvedDate: Date = {
-            if let s = dto.start_time_utc, let d = Game.parseISO(s) {
-                return d
-            }
+            if let s = dto.start_time_utc, let d = Game.parseISO(s) { return d }
             return Game.parseGameDate(dto.game_date)
         }()
 
@@ -79,6 +64,10 @@ extension Game {
         self.homeAbbrev = home?.abbrev ?? "HME"
         self.startTimeText = startText
         self.venue = dto.venue
+
+        self.awayLogoURL = away?.logo_url
+        self.homeLogoURL = home?.logo_url
+
         self.homeWinProb = nil
         self.awayWinProb = nil
     }

@@ -4,34 +4,121 @@ struct GameDetailView: View {
     let game: Game
 
     var body: some View {
-        List {
-            Section("Matchup") {
-                LabeledContent("Away", value: "\(game.awayTeam) (\(game.awayAbbrev))")
-                LabeledContent("Home", value: "\(game.homeTeam) (\(game.homeAbbrev))")
-            }
+        ScrollView {
+            VStack(spacing: 16) {
+                // Matchup header
+                HStack(alignment: .center, spacing: 12) {
+                    teamBlock(
+                        logoURL: game.awayLogoURL,
+                        abbrev: game.awayAbbrev,
+                        name: game.awayTeam,
+                        alignment: .leading
+                    )
 
-            Section("Time & Place") {
-                LabeledContent("Start", value: game.startTimeText)
-                if let venue = game.venue {
-                    LabeledContent("Venue", value: venue)
-                }
-            }
+                    Spacer()
 
-            Section("Projection (placeholder)") {
-                if let home = game.homeWinProb, let away = game.awayWinProb {
-                    LabeledContent("Home win", value: "\(Int((home * 100).rounded()))%")
-                    LabeledContent("Away win", value: "\(Int((away * 100).rounded()))%")
-                } else {
-                    Text("No projection loaded yet.")
-                        .foregroundStyle(.secondary)
+                    VStack(spacing: 6) {
+                        Text("AT")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if !game.startTimeText.isEmpty {
+                            Text(game.startTimeText)
+                                .font(.headline)
+                        } else {
+                            Text(game.date.formatted(date: .abbreviated, time: .shortened))
+                                .font(.headline)
+                        }
+
+                        if let venue = game.venue, !venue.isEmpty {
+                            Text(venue)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .frame(maxWidth: 180)
+
+                    Spacer()
+
+                    teamBlock(
+                        logoURL: game.homeLogoURL,
+                        abbrev: game.homeAbbrev,
+                        name: game.homeTeam,
+                        alignment: .trailing
+                    )
                 }
+                .padding(.horizontal)
+
+                // Details card
+                VStack(alignment: .leading, spacing: 10) {
+                    detailRow(title: "Date", value: game.date.formatted(date: .long, time: .omitted))
+                    detailRow(title: "Time", value: game.startTimeText.isEmpty
+                              ? game.date.formatted(date: .omitted, time: .shortened)
+                              : game.startTimeText)
+
+                    if let venue = game.venue, !venue.isEmpty {
+                        detailRow(title: "Venue", value: venue)
+                    }
+                }
+                .padding()
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal)
+
+                Spacer(minLength: 12)
             }
+            .padding(.top, 12)
         }
         .navigationTitle("\(game.awayAbbrev) @ \(game.homeAbbrev)")
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    @ViewBuilder
+    private func teamBlock(
+        logoURL: String?,
+        abbrev: String,
+        name: String,
+        alignment: HorizontalAlignment
+    ) -> some View {
+        VStack(alignment: alignment, spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(.black.opacity(0.85))
+
+                SVGRemoteImageView(urlString: logoURL, boxSize: 56)
+                    .padding(4)
+            }
+            .frame(width: 72, height: 72)
+
+            Text(abbrev)
+                .font(.title3)
+                .fontWeight(.bold)
+
+            Text(name)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: 140, alignment: alignment == .leading ? .leading : .trailing)
+    }
+
+    @ViewBuilder
+    private func detailRow(title: String, value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(title)
+                .foregroundStyle(.secondary)
+                .frame(width: 60, alignment: .leading)
+
+            Text(value)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.subheadline)
+    }
 }
 
 #Preview {
-    NavigationStack { GameDetailView(game: MockData.games[0]) }
+    NavigationStack {
+        GameDetailView(game: MockData.games[0])
+    }
+    .environmentObject(AppSettings())
 }

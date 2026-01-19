@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BEBA1B182F1DAFD400969742 /* SVGKit in Frameworks */ = {isa = PBXBuildFile; productRef = BEBA1B172F1DAFD400969742 /* SVGKit */; };
 		BEEAD2FB2F1D4D58000E63D5 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = BEEAD2FA2F1D4D58000E63D5 /* Supabase */; };
 /* End PBXBuildFile section */
 
@@ -71,6 +72,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BEBA1B182F1DAFD400969742 /* SVGKit in Frameworks */,
 				BEEAD2FB2F1D4D58000E63D5 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -139,6 +141,7 @@
 			name = "NHL Edge";
 			packageProductDependencies = (
 				BEEAD2FA2F1D4D58000E63D5 /* Supabase */,
+				BEBA1B172F1DAFD400969742 /* SVGKit */,
 			);
 			productName = "NHL Edge";
 			productReference = BE4CA3F52F1D46E0003636E8 /* NHL Edge.app */;
@@ -224,6 +227,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				BEEAD2F92F1D4D58000E63D5 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				BEBA1B162F1DAFD400969742 /* XCRemoteSwiftPackageReference "SVGKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BE4CA3F62F1D46E0003636E8 /* Products */;
@@ -592,6 +596,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		BEBA1B162F1DAFD400969742 /* XCRemoteSwiftPackageReference "SVGKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SVGKit/SVGKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
 		BEEAD2F92F1D4D58000E63D5 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift";
@@ -603,6 +615,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		BEBA1B172F1DAFD400969742 /* SVGKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BEBA1B162F1DAFD400969742 /* XCRemoteSwiftPackageReference "SVGKit" */;
+			productName = SVGKit;
+		};
 		BEEAD2FA2F1D4D58000E63D5 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = BEEAD2F92F1D4D58000E63D5 /* XCRemoteSwiftPackageReference "supabase-swift" */;

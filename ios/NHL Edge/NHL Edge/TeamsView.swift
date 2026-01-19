@@ -13,7 +13,11 @@ struct TeamsView: View {
                 if isLoading {
                     ProgressView("Loading teams…")
                 } else if let errorText {
-                    ContentUnavailableView("Couldn’t load teams", systemImage: "exclamationmark.triangle", description: Text(errorText))
+                    ContentUnavailableView(
+                        "Couldn’t load teams",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(errorText)
+                    )
                 } else {
                     List(teams.sorted { $0.name < $1.name }) { team in
                         NavigationLink(value: team) {
@@ -27,12 +31,12 @@ struct TeamsView: View {
                 TeamDetailView(team: team)
             }
             .task { await load() }
-            .refreshable { await load() }
+            .refreshable { await load(forceRefresh: true) }
         }
     }
 
     @MainActor
-    private func load() async {
+    private func load(forceRefresh: Bool = false) async {
         errorText = nil
 
         if settings.useTestData {
@@ -44,7 +48,7 @@ struct TeamsView: View {
         defer { isLoading = false }
 
         do {
-            let dtos = try await SupabaseService.shared.fetchTeams()
+            let dtos = try await SupabaseService.shared.fetchTeams(forceRefresh: forceRefresh)
             teams = dtos.map(Team.init(dto:))
         } catch {
             print("❌ Supabase error:", error)
@@ -57,4 +61,3 @@ struct TeamsView: View {
     TeamsView()
         .environmentObject(AppSettings())
 }
-
