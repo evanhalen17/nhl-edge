@@ -6,7 +6,6 @@ struct GameDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Matchup header
                 HStack(alignment: .center, spacing: 12) {
                     teamBlock(
                         logoURL: game.awayLogoURL,
@@ -50,7 +49,6 @@ struct GameDetailView: View {
                 }
                 .padding(.horizontal)
 
-                // Details card
                 VStack(alignment: .leading, spacing: 10) {
                     detailRow(title: "Date", value: game.date.formatted(date: .long, time: .omitted))
                     detailRow(title: "Time", value: game.startTimeText.isEmpty
@@ -81,14 +79,13 @@ struct GameDetailView: View {
         alignment: HorizontalAlignment
     ) -> some View {
         VStack(alignment: alignment, spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(.black.opacity(0.85))
-
-                SVGRemoteImageView(urlString: logoURL, boxSize: 56)
-                    .padding(4)
-            }
-            .frame(width: 72, height: 72)
+            FadingLogo(urlString: logoURL, boxSize: 56)
+                .frame(width: 72, height: 72)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(.secondary.opacity(0.25), lineWidth: 0.5)
+                )
+                .accessibilityHidden(true)
 
             Text(abbrev)
                 .font(.title3)
@@ -113,6 +110,27 @@ struct GameDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .font(.subheadline)
+    }
+}
+
+private struct FadingLogo: View {
+    let urlString: String?
+    let boxSize: CGFloat
+
+    @State private var opacity: Double = 0
+    private let fadeDuration: Double = 0.6
+
+    var body: some View {
+        SVGRemoteImageView(urlString: urlString, boxSize: boxSize) {
+            withAnimation(.easeInOut(duration: fadeDuration)) {
+                opacity = 1
+            }
+        }
+        .opacity(opacity)
+        .onAppear { opacity = 0 }
+        .onChange(of: urlString) { _ in
+            opacity = 0
+        }
     }
 }
 

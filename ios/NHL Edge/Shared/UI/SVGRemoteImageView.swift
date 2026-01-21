@@ -5,7 +5,11 @@ import SVGKit
 /// This avoids SVGKFastImageView sizing quirks and makes SwiftUI sizing predictable.
 struct SVGRemoteImageView: UIViewRepresentable {
     let urlString: String?
-    let boxSize: CGFloat  // e.g. 28
+    let boxSize: CGFloat  // e.g. 32
+
+    /// Optional callback invoked on the main thread when the image is set.
+    /// Use this for fade-in animations in SwiftUI (detail screens only).
+    var onImageSet: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> UIImageView {
         let iv = UIImageView()
@@ -22,16 +26,21 @@ struct SVGRemoteImageView: UIViewRepresentable {
         else {
             uiView.image = nil
             context.coordinator.currentURL = nil
+            context.coordinator.currentBoxSize = nil
+            context.coordinator.didFireCallback = false
             return
         }
 
-        if context.coordinator.currentURL == url,
-           context.coordinator.currentBoxSize == boxSize {
-            return
-        }
+        let isSameRequest =
+            (context.coordinator.currentURL == url) &&
+            (context.coordinator.currentBoxSize == boxSize)
+
+        if isSameRequest { return }
 
         context.coordinator.currentURL = url
         context.coordinator.currentBoxSize = boxSize
+        context.coordinator.didFireCallback = false
+
         uiView.image = nil
 
         Task.detached(priority: .utility) {
@@ -43,20 +52,22 @@ struct SVGRemoteImageView: UIViewRepresentable {
 
                 guard let svg = SVGKImage(data: data) else { return }
 
-                // Rasterize to a square target; UIImageView will aspect-fit within its bounds
                 let target = CGSize(width: boxSize, height: boxSize)
                 svg.scaleToFit(inside: target)
 
-                // Render to UIImage
                 guard let rendered = svg.uiImage else { return }
 
                 await MainActor.run {
-                    // Ensure we still want this URL/size
                     guard context.coordinator.currentURL == url,
                           context.coordinator.currentBoxSize == boxSize
                     else { return }
 
                     uiView.image = rendered
+
+                    if context.coordinator.didFireCallback == false {
+                        context.coordinator.didFireCallback = true
+                        onImageSet?()
+                    }
                 }
             } catch {
                 // silent fail
@@ -69,6 +80,7 @@ struct SVGRemoteImageView: UIViewRepresentable {
     final class Coordinator {
         var currentURL: URL?
         var currentBoxSize: CGFloat?
+        var didFireCallback: Bool = false
     }
 }
 

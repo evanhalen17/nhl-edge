@@ -7,7 +7,8 @@ struct GameRowView: View {
         HStack(spacing: 12) {
             // Away team
             HStack(spacing: 8) {
-                logoTile(urlString: game.awayLogoURL)
+                logo(urlString: game.awayLogoURL)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(game.awayAbbrev)
                         .font(.headline)
@@ -56,23 +57,22 @@ struct GameRowView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                logoTile(urlString: game.homeLogoURL)
+
+                logo(urlString: game.homeLogoURL)
             }
         }
         .padding(.vertical, 8)
     }
 
     @ViewBuilder
-    private func logoTile(urlString: String?) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(.black.opacity(0.85))
-
-            SVGRemoteImageView(urlString: urlString, boxSize: 32)
-                .padding(1)
-        }
-        .frame(width: 40, height: 40)
-        .accessibilityHidden(true)
+    private func logo(urlString: String?) -> some View {
+        SVGRemoteImageView(urlString: urlString, boxSize: 32)
+            .frame(width: 40, height: 40)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(.secondary.opacity(0.25), lineWidth: 0.5)
+            )
+            .accessibilityHidden(true)
     }
 }
 
