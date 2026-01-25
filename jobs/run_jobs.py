@@ -1,18 +1,36 @@
-from dotenv import load_dotenv
-load_dotenv(dotenv_path=".env")
-
 import os
 import math
 from datetime import datetime, timedelta, timezone, date
+from typing import cast
 import requests
 from supabase import create_client
+from dotenv import load_dotenv
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+load_dotenv(dotenv_path=".env")
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 API_WEB = "https://api-web.nhle.com/v1"
 API_GAMECENTER = "https://api-web.nhle.com/v1/gamecenter"
 STATS_API_TEAMS_URL = "https://statsapi.web.nhl.com/api/v1/teams"
+
+def sb_exec(q, label: str):
+    """
+    Execute a supabase query and hard-fail on PostgREST errors (instead of failing silently).
+    """
+    resp = q.execute()
+
+    # supabase-py response shape can vary by version; handle both
+    err = getattr(resp, "error", None)
+    if err:
+        raise RuntimeError(f"[supabase error] {label}: {err}")
+
+    # Some versions store errors inside resp.data dict; defensive
+    if isinstance(getattr(resp, "data", None), dict) and resp.data.get("error"):
+        raise RuntimeError(f"[supabase error] {label}: {resp.data.get('error')}")
+
+    return resp
 
 
 def american_odds_from_prob(p: float) -> int | None:
@@ -60,6 +78,14 @@ def fetch_schedule(d: date) -> dict:
     return r.json()
 
 
+def fetch_gamecenter_right_rail(game_id: int) -> dict:
+    url = f"{API_GAMECENTER}/{int(game_id)}/right-rail"
+    r = requests.get(url, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+
 def upsert_teams(sb, teams: list[dict]):
     now = datetime.now(timezone.utc).isoformat()
     rows = []
@@ -80,7 +106,7 @@ def upsert_teams(sb, teams: list[dict]):
             }
         )
     if rows:
-        sb.table("teams").upsert(rows, on_conflict="team_id").execute()
+        sb_exec(sb.table("teams").upsert(rows, on_conflict="team_id"), "upsert teams")
 
 
 def upsert_games_and_results(sb, schedule_json: dict):
@@ -224,13 +250,16 @@ def upsert_games_and_results(sb, schedule_json: dict):
 
     # Upsert teams first (satisfies FKs)
     if teams_by_id:
-        sb.table("teams").upsert(list(teams_by_id.values()), on_conflict="team_id").execute()
+        print(f"[teams] upserting {len(teams_by_id)}")
+        sb_exec(sb.table("teams").upsert(list(teams_by_id.values()), on_conflict="team_id"), "upsert teams")
 
     if games_rows:
-        sb.table("games").upsert(games_rows, on_conflict="game_id").execute()
+        print(f"[games] upserting {len(games_rows)}")
+        sb_exec(sb.table("games").upsert(games_rows, on_conflict="game_id"), "upsert games")
 
     if results_rows:
-        sb.table("game_results").upsert(results_rows, on_conflict="game_id").execute()
+        print(f"[results] upserting {len(results_rows)}")
+        sb_exec(sb.table("game_results").upsert(results_rows, on_conflict="game_id"), "upsert game_results")
 
 def upsert_team_directory(sb):
     """
@@ -270,7 +299,7 @@ def upsert_team_directory(sb):
             "updated_at": now_iso,
         })
 
-    sb.table("teams").upsert(rows, on_conflict="team_id").execute()
+    sb_exec(sb.table("teams").upsert(rows, on_conflict="team_id"), "upsert teams")
     print(f"[teams] upserted {len(rows)} teams from statsapi directory")
 
 
@@ -293,78 +322,84 @@ def _safe_int(v):
 
 def upsert_game_results_from_gamecenter(sb, game_id: int):
     """
-    Populate game_results with richer final stats.
-    Updates regardless, but only for games that are final/off.
+    Populate game_results with richer final stats using:
+      - /gamecenter/{id}/landing (goals + final_type/gameState)
+      - /gamecenter/{id}/right-rail (teamGameStats: SOG, PIM, PP, etc.)
     """
-    data = fetch_gamecenter_landing(game_id)
+    landing = fetch_gamecenter_landing(game_id)
 
-    # Status gate
-    raw_state = (data.get("gameState") or data.get("gameStatus") or "").lower()
+    # Only write once game is final/off
+    raw_state = (landing.get("gameState") or landing.get("gameStatus") or "").lower()
     if raw_state not in ("final", "gameover", "off"):
-        return  # don't write partials to game_results
+        return
 
-    home = data.get("homeTeam", {}) or {}
-    away = data.get("awayTeam", {}) or {}
+    home = landing.get("homeTeam", {}) or {}
+    away = landing.get("awayTeam", {}) or {}
 
-    # Goals
     home_goals = _safe_int(home.get("score"))
     away_goals = _safe_int(away.get("score"))
 
-    # Team stats (structure varies slightly; handle a few common patterns)
-    # Often present under data["summary"]["teamGameStats"] or similar.
-    summary = data.get("summary", {}) or {}
-    team_stats = summary.get("teamGameStats") or summary.get("teamStats") or {}
+    # Pull right-rail team stats
+    rr = fetch_gamecenter_right_rail(game_id)
+    team_stats = rr.get("teamGameStats") or []
+    # Optional 1-time debug (leave in until confirmed)
+    print("[right-rail categories]", [r.get("category") for r in team_stats if isinstance(r, dict)][:15])
 
-    def get_stat(side: str, key: str):
-        """
-        Attempts to read a stat for 'home'/'away' from multiple shapes.
-        """
-        # Shape A: team_stats["homeTeam"]["sog"]
-        side_obj = team_stats.get(f"{side}Team") or team_stats.get(side) or {}
-        if isinstance(side_obj, dict) and key in side_obj:
-            return side_obj.get(key)
+    # Build category -> row map (case-insensitive)
+    stats = {
+        (row.get("category") or "").strip().lower(): row
+        for row in team_stats
+        if isinstance(row, dict)
+    }
 
-        # Shape B: team_stats is list of dicts
-        if isinstance(team_stats, list):
-            for row in team_stats:
-                if not isinstance(row, dict):
-                    continue
-                if row.get("team") == side and key in row:
-                    return row.get(key)
+    def _get(cat: str):
+        row = stats.get(cat.strip().lower())
+        if not row:
+            return None, None
+        return row.get("homeValue"), row.get("awayValue")
 
-        return None
+    def to_int(x):
+        if x is None:
+            return None
+        if isinstance(x, (int, float)):
+            return int(x)
+        s = str(x).strip()
+        return int(s) if s.isdigit() else None
 
-    # Common keys in api-web:
-    # shotsOnGoal / sog, powerPlayGoals / ppGoals, powerPlayOpportunities / ppOpportunities, pim
-    home_sog = get_stat("home", "shotsOnGoal") or get_stat("home", "sog")
-    away_sog = get_stat("away", "shotsOnGoal") or get_stat("away", "sog")
+    def pp_parse(x):
+        # expects "1/4" -> (1, 4)
+        if not x:
+            return (None, None)
+        s = str(x).strip()
+        if "/" not in s:
+            return (None, None)
+        a, b = s.split("/", 1)
+        return (to_int(a), to_int(b))
 
-    home_pp_goals = get_stat("home", "powerPlayGoals") or get_stat("home", "ppGoals")
-    away_pp_goals = get_stat("away", "powerPlayGoals") or get_stat("away", "ppGoals")
+    # These category names are commonly used in right-rail
+    home_sog, away_sog = _get("sog")
+    home_pim, away_pim = _get("pim")
 
-    home_pp_opps = get_stat("home", "powerPlayOpportunities") or get_stat("home", "ppOpportunities")
-    away_pp_opps = get_stat("away", "powerPlayOpportunities") or get_stat("away", "ppOpportunities")
+    # PP often provided as a single "goals/opps" string under "powerPlay"
+    home_pp, away_pp = _get("powerPlay")
+    home_pp_goals, home_pp_opps = pp_parse(home_pp)
+    away_pp_goals, away_pp_opps = pp_parse(away_pp)
 
-    home_pim = get_stat("home", "pim") or get_stat("home", "penaltyMinutes")
-    away_pim = get_stat("away", "pim") or get_stat("away", "penaltyMinutes")
-
-    # Final type sometimes exists in landing payload
-    final_type = data.get("finalType") or data.get("gameOutcome") or None
-
+    final_type = landing.get("finalType") or landing.get("gameOutcome") or None
     now_iso = datetime.now(timezone.utc).isoformat()
 
     row = {
         "game_id": int(game_id),
-        "home_goals": _safe_int(home_goals),
-        "away_goals": _safe_int(away_goals),
-        "home_sog": _safe_int(home_sog),
-        "away_sog": _safe_int(away_sog),
-        "home_pp_goals": _safe_int(home_pp_goals),
-        "away_pp_goals": _safe_int(away_pp_goals),
-        "home_pp_opps": _safe_int(home_pp_opps),
-        "away_pp_opps": _safe_int(away_pp_opps),
-        "home_pim": _safe_int(home_pim),
-        "away_pim": _safe_int(away_pim),
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "home_sog": to_int(home_sog),
+        "away_sog": to_int(away_sog),
+        "home_pp_goals": home_pp_goals,
+        "away_pp_goals": away_pp_goals,
+        "home_pp_opps": home_pp_opps,
+        "away_pp_opps": away_pp_opps,
+        "home_pim": to_int(home_pim),
+        "away_pim": to_int(away_pim),
         "final_type": final_type,
         "updated_at": now_iso,
     }
@@ -470,17 +505,19 @@ def generate_poc_projections(sb, game_ids: list[int], model_version: str = "0.1.
             )
 
     if base_rows:
-        sb.table("game_projections").upsert(base_rows, on_conflict="game_id,model_version").execute()
+        sb_exec(sb.table("game_projections").upsert(base_rows, on_conflict="game_id,model_version"), "upsert game_projections")
     if line_rows:
-        sb.table("game_projection_lines").upsert(
+        sb_exec(sb.table("game_projection_lines").upsert(
             line_rows, on_conflict="game_id,model_version,market,line_value,side"
-        ).execute()
+        ), "upsert game_projection_lines")
 
 
 def main():
-    sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    print(f"[env] SUPABASE_URL={SUPABASE_URL}")
 
-    run = sb.table("ingestion_runs").insert({"job_name": "scheduled_ingest_and_project"}).execute()
+    sb = create_client(cast(str, SUPABASE_URL), cast(str, SUPABASE_SERVICE_ROLE_KEY))
+
+    run = sb_exec(sb.table("ingestion_runs").insert({"job_name": "scheduled_ingest_and_project"}), "ingestion_runs")
     run_id = run.data[0]["run_id"] if run.data else None
 
     try:
@@ -513,6 +550,7 @@ def main():
 
             # game ids for this date from DB (more reliable than parsing)
             g_rows = sb.table("games").select("game_id").eq("game_date", d.isoformat()).execute()
+            print(f"[games] {d.isoformat()} -> {len(g_rows.data or [])} games in DB")
             # Backfill richer results for finals (SOG/PP/PIM/etc.)
             for r in (g_rows.data or []):
                 gid = r["game_id"]
