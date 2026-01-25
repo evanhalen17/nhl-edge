@@ -11,6 +11,7 @@ SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
 API_WEB = "https://api-web.nhle.com/v1"
+API_GAMECENTER = "https://api-web.nhle.com/v1/gamecenter"
 STATS_API_TEAMS_URL = "https://statsapi.web.nhl.com/api/v1/teams"
 
 
@@ -273,6 +274,104 @@ def upsert_team_directory(sb):
     print(f"[teams] upserted {len(rows)} teams from statsapi directory")
 
 
+def fetch_gamecenter_landing(game_id: int) -> dict:
+    """
+    NHL api-web gamecenter landing endpoint. Contains scoring + team stats (SOG, PIM, PP, etc.).
+    """
+    url = f"{API_GAMECENTER}/{int(game_id)}/landing"
+    r = requests.get(url, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+def _safe_int(v):
+    try:
+        return int(v) if v is not None else None
+    except Exception:
+        return None
+
+
+def upsert_game_results_from_gamecenter(sb, game_id: int):
+    """
+    Populate game_results with richer final stats.
+    Updates regardless, but only for games that are final/off.
+    """
+    data = fetch_gamecenter_landing(game_id)
+
+    # Status gate
+    raw_state = (data.get("gameState") or data.get("gameStatus") or "").lower()
+    if raw_state not in ("final", "gameover", "off"):
+        return  # don't write partials to game_results
+
+    home = data.get("homeTeam", {}) or {}
+    away = data.get("awayTeam", {}) or {}
+
+    # Goals
+    home_goals = _safe_int(home.get("score"))
+    away_goals = _safe_int(away.get("score"))
+
+    # Team stats (structure varies slightly; handle a few common patterns)
+    # Often present under data["summary"]["teamGameStats"] or similar.
+    summary = data.get("summary", {}) or {}
+    team_stats = summary.get("teamGameStats") or summary.get("teamStats") or {}
+
+    def get_stat(side: str, key: str):
+        """
+        Attempts to read a stat for 'home'/'away' from multiple shapes.
+        """
+        # Shape A: team_stats["homeTeam"]["sog"]
+        side_obj = team_stats.get(f"{side}Team") or team_stats.get(side) or {}
+        if isinstance(side_obj, dict) and key in side_obj:
+            return side_obj.get(key)
+
+        # Shape B: team_stats is list of dicts
+        if isinstance(team_stats, list):
+            for row in team_stats:
+                if not isinstance(row, dict):
+                    continue
+                if row.get("team") == side and key in row:
+                    return row.get(key)
+
+        return None
+
+    # Common keys in api-web:
+    # shotsOnGoal / sog, powerPlayGoals / ppGoals, powerPlayOpportunities / ppOpportunities, pim
+    home_sog = get_stat("home", "shotsOnGoal") or get_stat("home", "sog")
+    away_sog = get_stat("away", "shotsOnGoal") or get_stat("away", "sog")
+
+    home_pp_goals = get_stat("home", "powerPlayGoals") or get_stat("home", "ppGoals")
+    away_pp_goals = get_stat("away", "powerPlayGoals") or get_stat("away", "ppGoals")
+
+    home_pp_opps = get_stat("home", "powerPlayOpportunities") or get_stat("home", "ppOpportunities")
+    away_pp_opps = get_stat("away", "powerPlayOpportunities") or get_stat("away", "ppOpportunities")
+
+    home_pim = get_stat("home", "pim") or get_stat("home", "penaltyMinutes")
+    away_pim = get_stat("away", "pim") or get_stat("away", "penaltyMinutes")
+
+    # Final type sometimes exists in landing payload
+    final_type = data.get("finalType") or data.get("gameOutcome") or None
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    row = {
+        "game_id": int(game_id),
+        "home_goals": _safe_int(home_goals),
+        "away_goals": _safe_int(away_goals),
+        "home_sog": _safe_int(home_sog),
+        "away_sog": _safe_int(away_sog),
+        "home_pp_goals": _safe_int(home_pp_goals),
+        "away_pp_goals": _safe_int(away_pp_goals),
+        "home_pp_opps": _safe_int(home_pp_opps),
+        "away_pp_opps": _safe_int(away_pp_opps),
+        "home_pim": _safe_int(home_pim),
+        "away_pim": _safe_int(away_pim),
+        "final_type": final_type,
+        "updated_at": now_iso,
+    }
+
+    sb.table("game_results").upsert(row, on_conflict="game_id").execute()
+
+
 def generate_poc_projections(sb, game_ids: list[int], model_version: str = "0.1.0"):
     """
     POC baseline so you can build the UI now:
@@ -414,6 +513,15 @@ def main():
 
             # game ids for this date from DB (more reliable than parsing)
             g_rows = sb.table("games").select("game_id").eq("game_date", d.isoformat()).execute()
+            # Backfill richer results for finals (SOG/PP/PIM/etc.)
+            for r in (g_rows.data or []):
+                gid = r["game_id"]
+                try:
+                    upsert_game_results_from_gamecenter(sb, gid)
+                except Exception as e:
+                    # Don't fail the whole run for one bad game payload
+                    print(f"[game_results] failed for game_id={gid}: {e}")
+
             all_game_ids.extend([r["game_id"] for r in (g_rows.data or [])])
 
         all_game_ids = sorted(set(all_game_ids))
