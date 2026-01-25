@@ -84,6 +84,14 @@ def fetch_gamecenter_right_rail(game_id: int) -> dict:
     r.raise_for_status()
     return r.json()
 
+def fetch_gamecenter_boxscore(game_id: int) -> dict:
+    """
+    NHL api-web gamecenter boxscore endpoint. Contains skater + goalie stats per game.
+    """
+    url = f"{API_GAMECENTER}/{int(game_id)}/boxscore"
+    r = requests.get(url, timeout=30)
+    r.raise_for_status()
+    return r.json()
 
 
 def upsert_teams(sb, teams: list[dict]):
@@ -106,6 +114,20 @@ def upsert_teams(sb, teams: list[dict]):
             }
         )
     if rows:
+        # Avoid unique abbrev conflicts by checking existing abbrev owners.
+        abbrevs = [r["abbrev"] for r in rows if r.get("abbrev")]
+        if abbrevs:
+            existing = (
+                sb.table("teams")
+                .select("team_id,abbrev")
+                .in_("abbrev", abbrevs)
+                .execute()
+            )
+            abbrev_to_team = {r["abbrev"]: r["team_id"] for r in (existing.data or [])}
+            for r in rows:
+                existing_team_id = abbrev_to_team.get(r["abbrev"])
+                if existing_team_id and int(existing_team_id) != int(r["team_id"]):
+                    r["abbrev"] = f"T{r['team_id']}"
         sb_exec(sb.table("teams").upsert(rows, on_conflict="team_id"), "upsert teams")
 
 
@@ -186,6 +208,34 @@ def upsert_games_and_results(sb, schedule_json: dict):
                 existing["city"] = city
             existing["updated_at"] = now_iso
 
+    def normalize_game_type(v):
+        # Accept "R", "P", "PR", "A" or numeric gameTypeId
+        if v is None:
+            return "R"
+        if isinstance(v, str):
+            s = v.strip().upper()
+            return s if s else "R"
+        try:
+            n = int(v)
+        except Exception:
+            return "R"
+        # NHL gameTypeId (common): 1=PR, 2=R, 3=P, 4=A
+        return {1: "PR", 2: "R", 3: "P", 4: "A"}.get(n, "R")
+
+    def infer_season_id(game_date_value):
+        try:
+            if isinstance(game_date_value, str):
+                y, m, d = game_date_value.split("-", 2)
+                dt = date(int(y), int(m), int(d))
+            elif isinstance(game_date_value, date):
+                dt = game_date_value
+            else:
+                return None
+        except Exception:
+            return None
+        start_year = dt.year if dt.month >= 7 else dt.year - 1
+        return int(f"{start_year}{start_year + 1}")
+
     games_rows = []
     results_rows = []
 
@@ -218,8 +268,10 @@ def upsert_games_and_results(sb, schedule_json: dict):
 
         game_date = g.get("gameDate") or start_time.split("T")[0]
 
-        season = 20252026
-        game_type = "R"
+        season = g.get("season") or g.get("seasonId") or schedule_json.get("season") or infer_season_id(game_date)
+        if season is None:
+            season = 0
+        game_type = normalize_game_type(g.get("gameType") or g.get("gameTypeId") or g.get("game_type"))
 
         games_rows.append(
             {
@@ -250,6 +302,21 @@ def upsert_games_and_results(sb, schedule_json: dict):
 
     # Upsert teams first (satisfies FKs)
     if teams_by_id:
+        # Avoid unique abbrev conflicts by checking existing abbrev owners.
+        abbrevs = [r.get("abbrev") for r in teams_by_id.values() if r.get("abbrev")]
+        if abbrevs:
+            existing = (
+                sb.table("teams")
+                .select("team_id,abbrev")
+                .in_("abbrev", abbrevs)
+                .execute()
+            )
+            abbrev_to_team = {r["abbrev"]: r["team_id"] for r in (existing.data or [])}
+            for r in teams_by_id.values():
+                existing_team_id = abbrev_to_team.get(r["abbrev"])
+                if existing_team_id and int(existing_team_id) != int(r["team_id"]):
+                    r["abbrev"] = f"T{r['team_id']}"
+                    r["logo_url"] = f"https://assets.nhle.com/logos/nhl/svg/T{r['team_id']}_light.svg"
         print(f"[teams] upserting {len(teams_by_id)}")
         sb_exec(sb.table("teams").upsert(list(teams_by_id.values()), on_conflict="team_id"), "upsert teams")
 
@@ -404,8 +471,304 @@ def upsert_game_results_from_gamecenter(sb, game_id: int):
         "updated_at": now_iso,
     }
 
-    sb.table("game_results").upsert(row, on_conflict="game_id").execute()
+    sb_exec(sb.table("game_results").upsert(row, on_conflict="game_id"), "upsert game_results (gamecenter)")
 
+def _to_seconds(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    s = str(value).strip()
+    if not s:
+        return None
+    parts = s.split(":")
+    try:
+        if len(parts) == 2:
+            return int(parts[0]) * 60 + int(parts[1])
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+    except Exception:
+        return None
+    return None
+
+
+def _to_float(value):
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def _get_first(d: dict, keys: list[str]):
+    for k in keys:
+        if k in d and d.get(k) is not None:
+            return d.get(k)
+    return None
+
+
+def _get_from_blocks(blocks: list[dict], keys: list[str]):
+    for b in blocks:
+        if isinstance(b, dict):
+            v = _get_first(b, keys)
+            if v is not None:
+                return v
+    return None
+
+
+def _deep_get_first(obj, keys: list[str], max_depth: int = 3):
+    if obj is None or max_depth < 0:
+        return None
+    if isinstance(obj, dict):
+        v = _get_first(obj, keys)
+        if v is not None:
+            return v
+        for val in obj.values():
+            found = _deep_get_first(val, keys, max_depth - 1)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for val in obj:
+            found = _deep_get_first(val, keys, max_depth - 1)
+            if found is not None:
+                return found
+    return None
+
+
+def _extract_name(v):
+    if isinstance(v, dict):
+        dv = v.get("default")
+        return dv if isinstance(dv, str) else None
+    return v if isinstance(v, str) else None
+
+
+def upsert_player_stats_from_boxscore(sb, game_id: int):
+    """
+    Populate players + player_game_stats from gamecenter boxscore payload.
+    Supports both api-web "playerByGameStats" and statsapi "teams" shapes.
+    """
+    payload = fetch_gamecenter_boxscore(game_id)
+
+    # If game is not final, still upsert but allow future overwrites.
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    players_rows: list[dict] = []
+    stats_rows: list[dict] = []
+
+    def add_player_row(player_id, full_name, position, shoots_catches, team_id):
+        if player_id is None or full_name is None:
+            return
+        row = {
+            "player_id": int(player_id),
+            "full_name": full_name,
+            "position": position,
+            "shoots_catches": shoots_catches,
+            "current_team_id": int(team_id) if team_id is not None else None,
+            "updated_at": now_iso,
+        }
+        players_rows.append(row)
+
+    def add_stat_row(row: dict):
+        if row.get("game_id") is None or row.get("player_id") is None:
+            return
+        stats_rows.append(row)
+
+    debug_enabled = os.environ.get("PLAYER_STATS_DEBUG") == "1"
+    debug_printed = {"value": False}
+
+    def parse_api_web_player(p, team_id, is_home, is_goalie):
+        player_id = p.get("playerId") or p.get("id")
+        name = _extract_name(p.get("name")) or p.get("fullName") or p.get("playerName")
+        position = p.get("position") or p.get("positionCode") or p.get("positionAbbrev")
+        shoots_catches = p.get("shootsCatches") or p.get("shootsCatchesCode")
+        stats_block = p.get("stat") if isinstance(p.get("stat"), dict) else None
+        if stats_block is None and isinstance(p.get("stats"), dict):
+            stats_block = p.get("stats")
+        # Some payloads nest under these keys
+        fallback_blocks = [
+            stats_block or {},
+            p.get("playerStats") if isinstance(p.get("playerStats"), dict) else {},
+            p.get("skaterStats") if isinstance(p.get("skaterStats"), dict) else {},
+            p.get("goalieStats") if isinstance(p.get("goalieStats"), dict) else {},
+            p.get("summary") if isinstance(p.get("summary"), dict) else {},
+            p,
+        ]
+
+        add_player_row(player_id, name, position, shoots_catches, team_id)
+
+        row = {
+            "game_id": int(game_id),
+            "player_id": int(player_id) if player_id is not None else None,
+            "team_id": int(team_id) if team_id is not None else None,
+            "is_home": bool(is_home),
+            "position": position,
+            "is_goalie": bool(is_goalie),
+            "updated_at": now_iso,
+        }
+
+        if is_goalie:
+            row.update(
+                {
+                    "toi_seconds": _to_seconds(_get_from_blocks(fallback_blocks, ["toi", "timeOnIce"])),
+                    "shots_against": _safe_int(
+                        _get_from_blocks(fallback_blocks, ["shotsAgainst", "shots", "sogAgainst", "shotsOnGoalAgainst"])
+                        or _deep_get_first(p, ["shotsAgainst", "shots", "sogAgainst", "shotsOnGoalAgainst"], max_depth=4)
+                    ),
+                    "saves": _safe_int(_get_from_blocks(fallback_blocks, ["saves"])),
+                    "goals_against": _safe_int(
+                        _get_from_blocks(fallback_blocks, ["goalsAgainst", "goals"])
+                    ),
+                }
+            )
+        else:
+            goals = _safe_int(_get_from_blocks(fallback_blocks, ["goals"]))
+            assists = _safe_int(_get_from_blocks(fallback_blocks, ["assists"]))
+            points = _safe_int(_get_from_blocks(fallback_blocks, ["points"]))
+            if points is None and goals is not None and assists is not None:
+                points = goals + assists
+            row.update(
+                {
+                    "toi_seconds": _to_seconds(_get_from_blocks(fallback_blocks, ["toi", "timeOnIce"])),
+                    "goals": goals,
+                    "assists": assists,
+                    "points": points,
+                    "shots": _safe_int(
+                        _get_from_blocks(fallback_blocks, ["shots", "sog", "shotsOnGoal", "shotsOnNet"])
+                        or _deep_get_first(p, ["shots", "sog", "shotsOnGoal", "shotsOnNet"], max_depth=4)
+                    ),
+                    "blocked_shots": _safe_int(
+                        _get_from_blocks(fallback_blocks, ["blockedShots", "blocked"])
+                    ),
+                    "hits": _safe_int(_get_from_blocks(fallback_blocks, ["hits"])),
+                    "pp_toi_seconds": _to_seconds(
+                        _get_from_blocks(fallback_blocks, ["ppToi", "powerPlayTimeOnIce"])
+                    ),
+                    "sh_toi_seconds": _to_seconds(
+                        _get_from_blocks(fallback_blocks, ["shToi", "shortHandedTimeOnIce"])
+                    ),
+                    "faceoff_pct": _to_float(
+                        _get_from_blocks(fallback_blocks, ["faceoffWinningPctg", "faceOffPct"])
+                    ),
+                }
+            )
+        if debug_enabled and not debug_printed["value"]:
+            print(
+                "[player_stats_debug]",
+                {
+                    "player_id": player_id,
+                    "position": position,
+                    "is_goalie": is_goalie,
+                    "available_keys": sorted(list(p.keys()))[:40],
+                    "shots_value": row.get("shots"),
+                },
+            )
+            debug_printed["value"] = True
+        add_stat_row(row)
+
+    def parse_statsapi_player(p, team_id, is_home):
+        person = p.get("person", {}) or {}
+        stats = p.get("stats", {}) or {}
+        position_obj = p.get("position", {}) or {}
+        position = position_obj.get("code") or position_obj.get("abbreviation") or position_obj.get("name")
+        player_id = person.get("id")
+        name = person.get("fullName")
+        shoots_catches = person.get("shootsCatches")
+
+        skater_stats = stats.get("skaterStats")
+        goalie_stats = stats.get("goalieStats")
+        is_goalie = bool(goalie_stats) or (position == "G")
+
+        add_player_row(player_id, name, position, shoots_catches, team_id)
+
+        row = {
+            "game_id": int(game_id),
+            "player_id": int(player_id) if player_id is not None else None,
+            "team_id": int(team_id) if team_id is not None else None,
+            "is_home": bool(is_home),
+            "position": position,
+            "is_goalie": bool(is_goalie),
+            "updated_at": now_iso,
+        }
+
+        if is_goalie and goalie_stats:
+            row.update(
+                {
+                    "toi_seconds": _to_seconds(goalie_stats.get("timeOnIce")),
+                    "shots_against": _safe_int(_get_first(goalie_stats, ["shots", "shotsAgainst", "sogAgainst", "shotsOnGoalAgainst"])),
+                    "saves": _safe_int(goalie_stats.get("saves")),
+                    "goals_against": _safe_int(goalie_stats.get("goalsAgainst")),
+                }
+            )
+        elif skater_stats:
+            goals = _safe_int(skater_stats.get("goals"))
+            assists = _safe_int(skater_stats.get("assists"))
+            points = _safe_int(skater_stats.get("points"))
+            if points is None and goals is not None and assists is not None:
+                points = goals + assists
+            row.update(
+                {
+                    "toi_seconds": _to_seconds(skater_stats.get("timeOnIce")),
+                    "goals": goals,
+                    "assists": assists,
+                    "points": points,
+                    "shots": _safe_int(_get_first(skater_stats, ["shots", "sog", "shotsOnGoal", "shotsOnNet"])),
+                    "blocked_shots": _safe_int(skater_stats.get("blocked")),
+                    "hits": _safe_int(skater_stats.get("hits")),
+                    "pp_toi_seconds": _to_seconds(skater_stats.get("powerPlayTimeOnIce")),
+                    "sh_toi_seconds": _to_seconds(skater_stats.get("shortHandedTimeOnIce")),
+                    "faceoff_pct": _to_float(skater_stats.get("faceOffPct")),
+                }
+            )
+        add_stat_row(row)
+
+    # api-web playerByGameStats shape
+    pbg = payload.get("playerByGameStats")
+    if isinstance(pbg, dict):
+        for side_key, is_home in (("homeTeam", True), ("awayTeam", False)):
+            team_block = pbg.get(side_key) or {}
+            team_id = (
+                (payload.get(side_key) or {}).get("id")
+                or (payload.get(side_key) or {}).get("teamId")
+                or team_block.get("teamId")
+            )
+
+            for sk_key in ("forwards", "defense", "skaters"):
+                for p in team_block.get(sk_key, []) or []:
+                    if isinstance(p, dict):
+                        parse_api_web_player(p, team_id, is_home, is_goalie=False)
+
+            for p in team_block.get("goalies", []) or []:
+                if isinstance(p, dict):
+                    parse_api_web_player(p, team_id, is_home, is_goalie=True)
+
+    # statsapi teams shape
+    teams = payload.get("teams")
+    if isinstance(teams, dict):
+        for side_key, is_home in (("home", True), ("away", False)):
+            team_block = teams.get(side_key, {}) or {}
+            team_id = (team_block.get("team") or {}).get("id")
+            for p in (team_block.get("players") or {}).values():
+                if isinstance(p, dict):
+                    parse_statsapi_player(p, team_id, is_home)
+
+    if players_rows:
+        sb_exec(sb.table("players").upsert(players_rows, on_conflict="player_id"), "upsert players")
+    if stats_rows:
+        sb_exec(sb.table("player_game_stats").upsert(stats_rows, on_conflict="game_id,player_id"), "upsert player_game_stats")
+
+
+def ensure_model_version(sb, model_version: str, description: str | None = None):
+    existing = sb.table("model_versions").select("model_version").eq("model_version", model_version).execute()
+    if existing.data:
+        return
+    row = {
+        "model_version": model_version,
+        "description": description or "auto-created by ingestion job",
+        "git_sha": os.environ.get("GIT_SHA"),
+        "is_active": True,
+    }
+    sb_exec(sb.table("model_versions").insert(row), "insert model_version")
 
 def generate_poc_projections(sb, game_ids: list[int], model_version: str = "0.1.0"):
     """
@@ -521,6 +884,11 @@ def main():
     run_id = run.data[0]["run_id"] if run.data else None
 
     try:
+        try:
+            upsert_team_directory(sb)
+        except Exception as e:
+            print(f"[teams] directory refresh failed: {e}")
+
         today = datetime.now(timezone.utc).date()
         dates = [today + timedelta(days=i) for i in range(-1, 3)]  # yesterday..+2
 
@@ -556,6 +924,7 @@ def main():
                 gid = r["game_id"]
                 try:
                     upsert_game_results_from_gamecenter(sb, gid)
+                    upsert_player_stats_from_boxscore(sb, gid)
                 except Exception as e:
                     # Don't fail the whole run for one bad game payload
                     print(f"[game_results] failed for game_id={gid}: {e}")
@@ -564,6 +933,7 @@ def main():
 
         all_game_ids = sorted(set(all_game_ids))
         if all_game_ids:
+            ensure_model_version(sb, "0.1.0")
             generate_poc_projections(sb, all_game_ids, model_version="0.1.0")
 
         if run_id:

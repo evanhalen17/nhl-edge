@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 .env
+ios/**/xcuserdata/
+ios/**/xcuserdatad/
+*.xcuserstate
+ios/NHL Edge/Config/Secrets.xcconfig
