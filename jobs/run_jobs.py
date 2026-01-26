@@ -932,9 +932,12 @@ def main():
             all_game_ids.extend([r["game_id"] for r in (g_rows.data or [])])
 
         all_game_ids = sorted(set(all_game_ids))
-        if all_game_ids:
+        enable_poc = os.environ.get("ENABLE_POC_PROJECTIONS") == "1"
+        if all_game_ids and enable_poc:
             ensure_model_version(sb, "0.1.0")
             generate_poc_projections(sb, all_game_ids, model_version="0.1.0")
+        elif all_game_ids:
+            print("[projections] POC projections disabled (set ENABLE_POC_PROJECTIONS=1 to enable).")
 
         if run_id:
             sb.table("ingestion_runs").update(
