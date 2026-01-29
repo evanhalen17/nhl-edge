@@ -2,7 +2,10 @@ import os
 import math
 from datetime import datetime, timedelta, timezone, date
 from typing import cast
+import time
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from supabase import create_client
 from dotenv import load_dotenv
 
@@ -14,6 +17,50 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 API_WEB = "https://api-web.nhle.com/v1"
 API_GAMECENTER = "https://api-web.nhle.com/v1/gamecenter"
 STATS_API_TEAMS_URL = "https://statsapi.web.nhl.com/api/v1/teams"
+
+NHL_TIMEOUT_SECONDS = int(os.environ.get("NHL_TIMEOUT_SECONDS", "30"))
+NHL_MIN_REQUEST_INTERVAL_SECONDS = float(os.environ.get("NHL_MIN_REQUEST_INTERVAL_SECONDS", "0.35"))
+NHL_MAX_RETRIES = int(os.environ.get("NHL_MAX_RETRIES", "5"))
+_LAST_REQUEST_AT = 0.0
+
+
+def _build_session() -> requests.Session:
+    retry = Retry(
+        total=NHL_MAX_RETRIES,
+        connect=NHL_MAX_RETRIES,
+        read=NHL_MAX_RETRIES,
+        status=NHL_MAX_RETRIES,
+        backoff_factor=0.8,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=frozenset(["GET"]),
+        raise_on_status=False,
+        respect_retry_after_header=True,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    s = requests.Session()
+    s.headers.update({"User-Agent": "nhl-edge-ingest/1.0"})
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+    return s
+
+
+SESSION = _build_session()
+
+
+def _throttle():
+    global _LAST_REQUEST_AT
+    now = time.monotonic()
+    wait = NHL_MIN_REQUEST_INTERVAL_SECONDS - (now - _LAST_REQUEST_AT)
+    if wait > 0:
+        time.sleep(wait)
+    _LAST_REQUEST_AT = time.monotonic()
+
+
+def _get_json(url: str) -> dict:
+    _throttle()
+    r = SESSION.get(url, timeout=NHL_TIMEOUT_SECONDS)
+    r.raise_for_status()
+    return r.json()
 
 def sb_exec(q, label: str):
     """
@@ -73,25 +120,19 @@ def poisson_spread_cover_prob(lam_home: float, lam_away: float, spread_home: flo
 
 def fetch_schedule(d: date) -> dict:
     url = f"{API_WEB}/schedule/{d.isoformat()}"
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    return r.json()
+    return _get_json(url)
 
 
 def fetch_gamecenter_right_rail(game_id: int) -> dict:
     url = f"{API_GAMECENTER}/{int(game_id)}/right-rail"
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    return r.json()
+    return _get_json(url)
 
 def fetch_gamecenter_boxscore(game_id: int) -> dict:
     """
     NHL api-web gamecenter boxscore endpoint. Contains skater + goalie stats per game.
     """
     url = f"{API_GAMECENTER}/{int(game_id)}/boxscore"
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    return r.json()
+    return _get_json(url)
 
 
 def upsert_teams(sb, teams: list[dict]):
@@ -336,9 +377,7 @@ def upsert_team_directory(sb):
     now_iso = datetime.now(timezone.utc).isoformat()
     url = "https://statsapi.web.nhl.com/api/v1/teams"
 
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    data = r.json()
+    data = _get_json(url)
 
     teams = data.get("teams", [])
     if not isinstance(teams, list) or not teams:
@@ -375,9 +414,7 @@ def fetch_gamecenter_landing(game_id: int) -> dict:
     NHL api-web gamecenter landing endpoint. Contains scoring + team stats (SOG, PIM, PP, etc.).
     """
     url = f"{API_GAMECENTER}/{int(game_id)}/landing"
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    return r.json()
+    return _get_json(url)
 
 
 def _safe_int(v):
@@ -894,6 +931,8 @@ def main():
 
         all_game_ids: list[int] = []
 
+        ingest_live = os.environ.get("INGEST_LIVE_GAMECENTER") == "1"
+
         for d in dates:
             sched = fetch_schedule(d)
 
@@ -917,11 +956,19 @@ def main():
             upsert_games_and_results(sb, sched)
 
             # game ids for this date from DB (more reliable than parsing)
-            g_rows = sb.table("games").select("game_id").eq("game_date", d.isoformat()).execute()
+            g_rows = (
+                sb.table("games")
+                .select("game_id,status")
+                .eq("game_date", d.isoformat())
+                .execute()
+            )
             print(f"[games] {d.isoformat()} -> {len(g_rows.data or [])} games in DB")
             # Backfill richer results for finals (SOG/PP/PIM/etc.)
             for r in (g_rows.data or []):
                 gid = r["game_id"]
+                status = (r.get("status") or "").lower()
+                if status != "final" and not ingest_live:
+                    continue
                 try:
                     upsert_game_results_from_gamecenter(sb, gid)
                     upsert_player_stats_from_boxscore(sb, gid)

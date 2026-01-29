@@ -26,5 +26,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NHL_TIMEOUT_SECONDS: "30"
+          NHL_MIN_REQUEST_INTERVAL_SECONDS: "0.35"
+          NHL_MAX_RETRIES: "5"
+          INGEST_LIVE_GAMECENTER: "0"
         run: |
           python jobs/run_jobs.py
